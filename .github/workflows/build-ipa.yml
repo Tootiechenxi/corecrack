@@ -1,0 +1,77 @@
+name: Build CoreCrack IPA
+
+on:
+  push:
+  workflow_dispatch:   # 允许手动触发
+
+jobs:
+  build:
+    runs-on: macos-latest   # 免费 macOS runner，自带 Xcode + clang + xcrun
+
+    steps:
+      - name: Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 确认编译工具链
+        run: |
+          xcrun --sdk iphoneos --show-sdk-path
+          clang --version
+          echo "--- SDK 就绪 ---"
+
+      - name: 编译 CoreCrack（arm64）
+        run: |
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          clang -arch arm64 -isysroot "$SDK" \
+                -mios-version-min=14.0 \
+                -fobjc-arc \
+                -framework Foundation -framework UIKit \
+                -c CoreCrack.m -o CoreCrackCore.o
+
+          clang -arch arm64 -isysroot "$SDK" \
+                -mios-version-min=14.0 \
+                -fobjc-arc \
+                -framework Foundation -framework UIKit \
+                -c main.m -o main.o
+
+          clang -arch arm64 -isysroot "$SDK" \
+                -mios-version-min=14.0 \
+                -framework Foundation -framework UIKit \
+                main.o CoreCrackCore.o \
+                -o CoreCrack
+
+          echo "编译完成"
+          file CoreCrack
+          ls -la CoreCrack
+
+      - name: 打包 .app
+        run: |
+          mkdir -p Payload/CoreCrack.app
+          cp CoreCrack Payload/CoreCrack.app/
+          cp Info.plist Payload/CoreCrack.app/
+
+      - name: 假签名（可选，用 theos 的 ldid 或跳过）
+        run: |
+          # GitHub runner 一般没有 ldid，TrollStore 可接受未签名 ipa
+          # 这里尝试 brew 安装 ldid，失败则跳过
+          brew install ldid 2>/dev/null || echo "无 ldid，跳过假签名（TrollStore 可接受）"
+          if command -v ldid >/dev/null 2>&1; then
+            ldid -S Payload/CoreCrack.app/CoreCrack || echo "签名失败，跳过"
+          fi
+
+      - name: 打包 ipa
+        run: |
+          zip -qr CoreCrack.ipa Payload/
+          echo "产出 CoreCrack.ipa"
+          ls -la CoreCrack.ipa
+
+      - name: 上传 ipa 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: CoreCrack-ipa
+          path: CoreCrack.ipa
+
+      - name: 一并上传三连 hook 脚本
+        uses: actions/upload-artifact@v4
+        with:
+          name: CoreCrack-frida-js
+          path: CoreCrack.js
