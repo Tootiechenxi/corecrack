@@ -1,18 +1,30 @@
 // ============================================================
-//  main.m — CoreCrack 三连破解工具入口
+//  main.m — CoreCrack 三连破解工具入口（硬编码路径版）
 //
+//  已写死本机 Core 路径，打开即定位；仍保留输入框兜底。
 //  两个按钮：
-//    [一键三连-静态]  静态 patch hasLocalActivationCard + ldid 重签名
-//    [运行时 Hook]    在注入场景下替换三方法 IMP（配合 dylib/frida）
+//    [① 静态三连]  patch hasLocalActivationCard + ldid 重签名
+//    [② 运行时 Hook]  替换三方法 IMP（本进程内有效）
 // ============================================================
 
 #import <UIKit/UIKit.h>
 #import "CoreCrack.h"
 
-@interface CrackVC : UIViewController
+// —— 硬编码路径：你的 Core 实际安装位置（Filza 查到）——
+#define kHardcodedCorePath @"/var/containers/Bundle/Application/C2F83D2D-6566-4ECB-A2EE-C06A927E57D8/Core.app/Core"
+
+@interface CrackVC : UIViewController <UITextFieldDelegate>
+@property (nonatomic, strong) UITextField *pathField;
 @end
 
 @implementation CrackVC
+
+- (NSString *)targetPath {
+    NSString *typed = self.pathField.text;
+    typed = [typed stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (typed.length > 0) return typed;
+    return kHardcodedCorePath;
+}
 
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -26,11 +38,22 @@
     title.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:title];
 
+    // 路径输入框（预填硬编码路径，可手动改）
+    self.pathField = [[UITextField alloc] init];
+    self.pathField.text = kHardcodedCorePath;
+    self.pathField.textColor = [UIColor whiteColor];
+    self.pathField.backgroundColor = [UIColor colorWithWhite:0.15 alpha:1.0];
+    self.pathField.font = [UIFont systemFontOfSize:11];
+    self.pathField.delegate = self;
+    self.pathField.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.pathField];
+
     UILabel *binLabel = [[UILabel alloc] init];
     binLabel.textColor = [UIColor colorWithWhite:0.7 alpha:1.0];
     binLabel.font = [UIFont systemFontOfSize:12];
     binLabel.numberOfLines = 0;
     binLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    binLabel.text = [NSString stringWithFormat:@"目标：%@", kHardcodedCorePath];
     [self.view addSubview:binLabel];
 
     UIButton *btnStatic = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -64,7 +87,11 @@
         [title.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:16],
         [title.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
         [title.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
-        [binLabel.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:10],
+        [self.pathField.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:10],
+        [self.pathField.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
+        [self.pathField.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
+        [self.pathField.heightAnchor constraintEqualToConstant:34],
+        [binLabel.topAnchor constraintEqualToAnchor:self.pathField.bottomAnchor constant:8],
         [binLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
         [binLabel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
         [btnStatic.topAnchor constraintEqualToAnchor:binLabel.bottomAnchor constant:16],
@@ -80,10 +107,6 @@
         [log.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
         [log.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-12],
     ]];
-
-    NSString *bin = [CoreCrack locateCoreBinary];
-    binLabel.text = bin ? [NSString stringWithFormat:@"目标：%@", bin]
-                        : @"⚠️ 未定位到 Core（确认已装 Core.app）";
 }
 
 - (void)log:(NSString *)m {
@@ -94,8 +117,13 @@
 }
 
 - (void)doStatic {
-    NSString *bin = [CoreCrack locateCoreBinary];
-    if (!bin) { [self log:@"❌ 未定位 Core"]; return; }
+    NSString *bin = [self targetPath];
+    if ([[NSFileManager defaultManager] fileExistsAtPath:bin] == NO) {
+        [self log:[NSString stringWithFormat:@"❌ 目标不存在：%@", bin]];
+        [self log:@"  请确认路径正确（用 Filza 复查）"];
+        return;
+    }
+    [self log:[NSString stringWithFormat:@"[①静态] 目标：%@", bin]];
     NSError *err = nil;
     [self log:@"[①静态] patch hasLocalActivationCard ..."];
     BOOL ok = [CoreCrack patchHasLocalActivationCardAtPath:bin error:&err];
@@ -106,9 +134,9 @@
         [self log:@"  ✅ 重签名完成。重开 Core.app 检查第一刀。"];
     } else {
         [self log:[NSString stringWithFormat:@"  ⚠️ 重签名失败：%@", err.localizedDescription]];
+        [self log:@"  （如果 patch 已成功，可在 Filza 里手动 ldid -S 重签）"];
     }
-    [self log:@"\n提示：第2/3刀（服务端/设备绑定）建议用 Frida 方案，"];
-    [self log:@"      参见 CoreCrack.js / README.md。" ];
+    [self log:@"\n提示：若激活提示仍在，说明卡在服务端，需 Frida 三连。"];
 }
 
 - (void)doRuntime {
@@ -118,9 +146,13 @@
         [self log:[NSString stringWithFormat:@"  %@  ->  %@", k,
                     ([r[k] boolValue] ? @"✅ 已 hook" : @"❌ 未找到")]];
     }
-    [self log:@"\n⚠️ 注意：运行时 hook 仅在本进程有效。"];
-    [self log:@"  要 hook 已安装的 Core.app，请用 Frida（CoreCrack.js）："];
-    [self log:@"  frida -U -f com.apple.manager -l CoreCrack.js --no-pause"];
+    [self log:@"\n⚠️ 运行时 hook 仅在本进程有效。"];
+    [self log:@"  要 hook Core.app 进程，需 Frida（见 CoreCrack.js）。"];
+}
+
+- (BOOL)textFieldShouldReturn:(UITextField *)tf {
+    [tf resignFirstResponder];
+    return YES;
 }
 
 @end
