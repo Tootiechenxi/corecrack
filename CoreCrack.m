@@ -20,6 +20,8 @@
 #import <sys/stat.h>
 #import <spawn.h>
 
+extern char **environ;   // 全局环境变量（posix_spawn 需要）
+
 @implementation CoreCrack
 
 // —— Mach-O 常量 ——

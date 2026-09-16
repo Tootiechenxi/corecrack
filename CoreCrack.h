@@ -22,11 +22,8 @@
 // 单刀：patch hasLocalActivationCard 返回 YES
 + (BOOL)patchHasLocalActivationCardAtPath:(NSString *)binPath error:(NSError **)error;
 
-// 单刀：让 createOrRefreshSessionWithCard 返回成功（由运行时完成，静态方案为 stub 替换）
-+ (BOOL)patchSessionCreationAtPath:(NSString *)binPath error:(NSError **)error;
-
-// 单刀：让 finishActivation 永久成功
-+ (BOOL)patchFinishActivationAtPath:(NSString *)binPath error:(NSError **)error;
+// 运行时三连 hook（替换三方法 IMP，返回各刀成败）
++ (NSDictionary *)crackRuntime;
 
 // 重签名（ldid）
 + (BOOL)resignBinaryAtPath:(NSString *)binPath error:(NSError **)error;
