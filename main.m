@@ -9,6 +9,11 @@
 
 #import <UIKit/UIKit.h>
 #import "CoreCrack.h"
+#import "HostsCrack.h"
+
+// 假服务器地址（你的云服务器）
+#define kFakeServerIP   @"165.154.3.167"
+#define kTargetDomain   @"order.klpjwycb.xyz"
 
 // —— 硬编码路径：你的 Core 实际安装位置（Filza 查到）——
 #define kHardcodedCorePath @"/var/containers/Bundle/Application/C2F83D2D-6566-4ECB-A2EE-C06A927E57D8/Core.app/Core"
@@ -83,6 +88,15 @@
     [btnInject addTarget:self action:@selector(doInject) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:btnInject];
 
+    UIButton *btnHijack = [UIButton buttonWithType:UIButtonTypeSystem];
+    [btnHijack setTitle:@"④ 劫持服务器（改 hosts + 查权限）" forState:UIControlStateNormal];
+    [btnHijack setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    btnHijack.backgroundColor = [UIColor colorWithRed:0.85 green:0.55 blue:0.1 alpha:1.0];
+    btnHijack.layer.cornerRadius = 10;
+    btnHijack.translatesAutoresizingMaskIntoConstraints = NO;
+    [btnHijack addTarget:self action:@selector(doHijack) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:btnHijack];
+
     UITextView *log = [[UITextView alloc] init];
     log.backgroundColor = [UIColor colorWithWhite:0.12 alpha:1.0];
     log.textColor = [UIColor colorWithRed:0.7 green:1.0 blue:0.7 alpha:1.0];
@@ -115,7 +129,11 @@
         [btnInject.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
         [btnInject.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
         [btnInject.heightAnchor constraintEqualToConstant:52],
-        [log.topAnchor constraintEqualToAnchor:btnInject.bottomAnchor constant:12],
+        [btnHijack.topAnchor constraintEqualToAnchor:btnInject.bottomAnchor constant:10],
+        [btnHijack.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
+        [btnHijack.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
+        [btnHijack.heightAnchor constraintEqualToConstant:52],
+        [log.topAnchor constraintEqualToAnchor:btnHijack.bottomAnchor constant:12],
         [log.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
         [log.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
         [log.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-12],
@@ -171,6 +189,29 @@
     }
     [self log:@"\n✅ 已尝试注入。现在打开 Core.app 检查是否跳过卡密框。"];
     [self log:@"  若仍卡住，说明字段格式不对，把上方「现有键」发我。"];
+}
+
+- (void)doHijack {
+    [self log:@"[④劫持] 检查 /etc/hosts 权限 ..."];
+    NSDictionary *chk = [HostsCrack checkHostsPermission];
+    [self log:[NSString stringWithFormat:@"  可读=%@  可写=%@  已有劫持=%@",
+               chk[@"可读"], chk[@"可写"], chk[@"已有劫持条目"]]];
+
+    BOOL writable = [chk[@"可写"] isEqualToString:@"是"];
+    if (!writable) {
+        [self log:@"  ⚠️ 本 App 无权限写 /etc/hosts（TrollStore 沙盒限制）"];
+        [self log:@"  仍需用 Filza(root) 手动改，或者用 DNS 方案。"];
+        [self log:[NSString stringWithFormat:@"  要加的内容：%@  %@", kFakeServerIP, kTargetDomain]];
+        return;
+    }
+
+    [self log:@"[④劫持] 写入 hosts ..."];
+    NSDictionary *r = [HostsCrack redirectDomain:kTargetDomain toIP:kFakeServerIP];
+    for (NSString *k in r) {
+        [self log:[NSString stringWithFormat:@"  %@ = %@", k, r[k]]];
+    }
+    [self log:@"\n✅ 若显示写入成功，现在打开 Core.app 点「初始化」测试。"];
+    [self log:@"  注意：手机需已安装并信任 Caddy 根证书！"];
 }
 
 - (BOOL)textFieldShouldReturn:(UITextField *)tf {

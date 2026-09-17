@@ -56,12 +56,17 @@ jobs:
           xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
                 -miphoneos-version-min=14.0 \
                 -fobjc-arc \
+                -c HostsCrack.m -o HostsCrack.o
+
+          xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
+                -miphoneos-version-min=14.0 \
+                -fobjc-arc \
                 -c main.m -o main.o
 
           xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
                 -miphoneos-version-min=14.0 \
                 -framework Foundation -framework UIKit \
-                main.o CoreCrackCore.o \
+                main.o CoreCrackCore.o HostsCrack.o \
                 -o CoreCrack
 
           echo "=== 编译结果 ==="
@@ -74,9 +79,25 @@ jobs:
           mkdir -p Payload/CoreCrack.app
           cp CoreCrack Payload/CoreCrack.app/
           cp Info.plist Payload/CoreCrack.app/
+          cp entitlements.plist Payload/CoreCrack.app/ 2>/dev/null || echo "无 entitlements.plist"
           ls -la Payload/CoreCrack.app/
 
-      - name: 打包 ipa（跳过 ldid，TrollStore 可接受未签名）
+      - name: 用 ldid 签名并注入 entitlements
+        run: |
+          set -x
+          # 尝试装 ldid，失败也不致命（TrollStore 装时会自己签）
+          brew install ldid 2>/dev/null || true
+          if command -v ldid >/dev/null 2>&1; then
+            if [ -f entitlements.plist ]; then
+              ldid -Sentitlements.plist Payload/CoreCrack.app/CoreCrack && echo "已用 entitlements 签名"
+            else
+              ldid -S Payload/CoreCrack.app/CoreCrack && echo "已普通签名"
+            fi
+          else
+            echo "无 ldid，跳过（TrollStore 安装时会自动处理签名与 entitlement）"
+          fi
+
+      - name: 打包 ipa
         run: |
           set -x
           zip -qr CoreCrack.ipa Payload/
