@@ -61,12 +61,17 @@ jobs:
           xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
                 -miphoneos-version-min=14.0 \
                 -fobjc-arc \
+                -c DomainSwap.m -o DomainSwap.o
+
+          xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
+                -miphoneos-version-min=14.0 \
+                -fobjc-arc \
                 -c main.m -o main.o
 
           xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
                 -miphoneos-version-min=14.0 \
                 -framework Foundation -framework UIKit \
-                main.o CoreCrackCore.o HostsCrack.o \
+                main.o CoreCrackCore.o HostsCrack.o DomainSwap.o \
                 -o CoreCrack
 
           echo "=== 编译结果 ==="
