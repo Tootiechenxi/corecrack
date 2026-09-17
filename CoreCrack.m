@@ -221,6 +221,44 @@ static void fake_finishActivation(id self, SEL _cmd, id card, id pending, id pro
     return res;
 }
 
+// ============ 注入激活状态 ============
+// 往 Core 的共享偏好 suite（com.ppmt.sharedstate.manager）写入激活字段，
+// 让 Core 启动时读到"已激活"状态，跳过卡密框。
+// 采用多候选字段策略：一次写入多个可能的键，覆盖 Core 可能读取的所有 key。
++ (NSDictionary *)injectActivationState {
+    NSMutableDictionary *res = [NSMutableDictionary dictionary];
+
+    NSUserDefaults *suite = [[NSUserDefaults alloc] initWithSuiteName:@"com.ppmt.sharedstate.manager"];
+    if (!suite) {
+        res[@"result"] = @"❌ 无法打开共享偏好 suite";
+        return res;
+    }
+
+    // 读取当前状态（供诊断）
+    NSDictionary *existing = [suite dictionaryRepresentation];
+    res[@"现有键"] = [existing.allKeys componentsJoinedByString:@", "] ?: @"(空)";
+
+    // —— 候选激活字段（多写几个，覆盖可能读取的 key）——
+    // 1. storedToken：存储"激活 token"（最常见的会话令牌键）
+    [suite setObject:@"CRACKED_FAKE_TOKEN_1234567890" forKey:@"storedToken"];
+    // 2. ppmt_stored_card_key：存储卡密
+    [suite setObject:@"CRACKED-CARD-KEY" forKey:@"ppmt_stored_card_key"];
+    // 3. 可能的布尔激活标志
+    [suite setBool:YES forKey:@"activated"];
+    [suite setBool:YES forKey:@"hasLocalActivationCard"];
+    [suite setBool:YES forKey:@"isActivated"];
+    // 4. 稳定默认值种子标记（让 Core 认为已初始化）
+    [suite setBool:YES forKey:@"PPMTStableDefaultsSeededV1"];
+
+    [suite synchronize];
+
+    res[@"result"] = @"✅ 已尝试写入激活字段";
+    res[@"suite"] = @"com.ppmt.sharedstate.manager";
+    res[@"写入字段"] = @"storedToken / ppmt_stored_card_key / activated / hasLocalActivationCard / isActivated / PPMTStableDefaultsSeededV1";
+
+    return res;
+}
+
 // ============ 重签名 ============
 + (BOOL)resignBinaryAtPath:(NSString *)binPath error:(NSError **)error {
     NSString *dir = [binPath stringByDeletingLastPathComponent];

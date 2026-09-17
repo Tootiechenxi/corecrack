@@ -74,6 +74,15 @@
     [btnRuntime addTarget:self action:@selector(doRuntime) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:btnRuntime];
 
+    UIButton *btnInject = [UIButton buttonWithType:UIButtonTypeSystem];
+    [btnInject setTitle:@"③ 注入激活状态（改本地偏好）" forState:UIControlStateNormal];
+    [btnInject setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    btnInject.backgroundColor = [UIColor colorWithRed:0.2 green:0.65 blue:0.35 alpha:1.0];
+    btnInject.layer.cornerRadius = 10;
+    btnInject.translatesAutoresizingMaskIntoConstraints = NO;
+    [btnInject addTarget:self action:@selector(doInject) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:btnInject];
+
     UITextView *log = [[UITextView alloc] init];
     log.backgroundColor = [UIColor colorWithWhite:0.12 alpha:1.0];
     log.textColor = [UIColor colorWithRed:0.7 green:1.0 blue:0.7 alpha:1.0];
@@ -102,7 +111,11 @@
         [btnRuntime.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
         [btnRuntime.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
         [btnRuntime.heightAnchor constraintEqualToConstant:52],
-        [log.topAnchor constraintEqualToAnchor:btnRuntime.bottomAnchor constant:12],
+        [btnInject.topAnchor constraintEqualToAnchor:btnRuntime.bottomAnchor constant:10],
+        [btnInject.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
+        [btnInject.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
+        [btnInject.heightAnchor constraintEqualToConstant:52],
+        [log.topAnchor constraintEqualToAnchor:btnInject.bottomAnchor constant:12],
         [log.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
         [log.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
         [log.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-12],
@@ -148,6 +161,16 @@
     }
     [self log:@"\n⚠️ 运行时 hook 仅在本进程有效。"];
     [self log:@"  要 hook Core.app 进程，需 Frida（见 CoreCrack.js）。"];
+}
+
+- (void)doInject {
+    [self log:@"[③注入] 往 com.ppmt.sharedstate.manager 写入激活字段 ..."];
+    NSDictionary *r = [CoreCrack injectActivationState];
+    for (NSString *k in r) {
+        [self log:[NSString stringWithFormat:@"  %@ = %@", k, r[k]]];
+    }
+    [self log:@"\n✅ 已尝试注入。现在打开 Core.app 检查是否跳过卡密框。"];
+    [self log:@"  若仍卡住，说明字段格式不对，把上方「现有键」发我。"];
 }
 
 - (BOOL)textFieldShouldReturn:(UITextField *)tf {

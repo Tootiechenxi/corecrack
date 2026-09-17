@@ -25,6 +25,9 @@
 // 运行时三连 hook（替换三方法 IMP，返回各刀成败）
 + (NSDictionary *)crackRuntime;
 
+// 注入激活状态：往 com.ppmt.sharedstate.manager 共享偏好写入激活字段
++ (NSDictionary *)injectActivationState;
+
 // 重签名（ldid）
 + (BOOL)resignBinaryAtPath:(NSString *)binPath error:(NSError **)error;
 
